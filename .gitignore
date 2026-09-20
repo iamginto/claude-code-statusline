@@ -1,0 +1,6 @@
+# kur.ps1'in settings.json'dan aldığı yedek
+*.yedek
+*.bak
+
+# statusline.ps1'in atomik yazma sırasında bıraktığı geçici dosya
+*.tmp
