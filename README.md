@@ -10,13 +10,23 @@ zero tokens.
 
 ## Install
 
+Paste into PowerShell:
+
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File kur.ps1          # install
-powershell -NoProfile -ExecutionPolicy Bypass -File kur.ps1 -Kaldir  # uninstall
+git clone https://github.com/iamginto/claude-code-statusline.git
+cd claude-code-statusline
+powershell -NoProfile -ExecutionPolicy Bypass -File kur.ps1
 ```
 
-Copies `statusline.ps1` to `%USERPROFILE%\.claude\` and wires it into
-`settings.json` (backup kept). Restart Claude Code to see it.
+Restart Claude Code and it's there. The installer copies `statusline.ps1` to
+`%USERPROFILE%\.claude\` and wires it into `settings.json` (backup kept).
+No git? Download the ZIP from GitHub, extract it and start from `cd`.
+
+Uninstall, from the same folder:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File kur.ps1 -Kaldir
+```
 
 Manual setup:
 
