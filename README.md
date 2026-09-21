@@ -1,122 +1,127 @@
 # claude-code-statusline
 
-Claude Code'un alt satırına oturumun ne kadar kota ve para harcadığını yazan
-tek dosyalık bir PowerShell script'i. Windows için; bağımlılığı yok, ağa hiç
-çıkmaz, kendisi token harcamaz.
+A single-file PowerShell script that shows, in Claude Code's status line, how
+much plan quota and money the current session has used. It runs on Windows,
+has no dependencies, makes no network requests and uses no tokens itself.
 
 ```
 5h: 1.0% (21.9%, r:3h54m) | 7d: 8.0% (95.7%, r:0d7h) | ctx: 5% (50.0K/1.0M) | in:53.6K out:3 | cost: $0.665 | Opus 5
 ```
 
-## Kurulum
+## Installation
 
-Gerekenler: Windows 10 / 11 ve Claude Code. Windows PowerShell 5.1 sistemde
-zaten var, PowerShell 7 de çalışır.
+Requirements: Windows 10 or 11 and Claude Code. Windows PowerShell 5.1 ships
+with the system; PowerShell 7 works as well.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File kur.ps1
 ```
 
-`statusline.ps1`'i `%USERPROFILE%\.claude\` altına kopyalar ve aynı klasördeki
-`settings.json` içinde `statusLine` komutunu ona bağlar. Ayarların geri kalanına
-dokunulmaz; yazmadan önce dosyanın `settings.json.yedek` kopyası alınır. Durum
-satırı, açık Claude Code oturumları yeniden başlatılınca görünür.
+The installer copies `statusline.ps1` to `%USERPROFILE%\.claude\` and points the
+`statusLine` command in that folder's `settings.json` at it. Other settings are
+left untouched, and a backup named `settings.json.yedek` is written before the
+file is changed. The status line appears once open Claude Code sessions are
+restarted.
 
-Elle kurmak istersen `statusline.ps1`'i istediğin yere koy ve
-`%USERPROFILE%\.claude\settings.json`'a şu alanı ekle:
+To install manually, put `statusline.ps1` wherever you like and add this entry
+to `%USERPROFILE%\.claude\settings.json`:
 
 ```json
 {
   "statusLine": {
     "type": "command",
-    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\<kullanici>\\.claude\\statusline.ps1\""
+    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\<user>\\.claude\\statusline.ps1\""
   }
 }
 ```
 
-Kaldırmak için:
+To uninstall:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File kur.ps1 -Kaldir
 ```
 
-`statusLine` ayarı silinir; script ve biriken sayaçlar (`.claude\usage`) yerinde
-kalır, onları elle silersin.
+This removes the `statusLine` setting. The script and the accumulated counters
+(`.claude\usage`) stay in place and can be deleted by hand.
 
-## Ne gösteriyor
+## Fields
 
-| alan | ne demek |
+| field | meaning |
 |---|---|
-| `5h: 1.0%` | 5 saatlik pencerede harcanan plan kotası |
-| `(21.9%, r:3h54m)` | pencerenin ne kadarı geçti, sıfırlanmasına ne kaldı |
-| `7d: 8.0% (95.7%, r:0d7h)` | aynısı 7 günlük pencere için |
-| `ctx: 5% (50.0K/1.0M)` | bağlam penceresi: yüzde, dolu token / pencere boyu |
-| `in:53.6K out:3` | bu oturumun baştan beri toplam girdi / çıktı tokenı |
-| `cost: $0.665` | bu oturumun dolar karşılığı |
-| `Opus 5` | modelin adı |
+| `5h: 1.0%` | plan quota used in the 5-hour window |
+| `(21.9%, r:3h54m)` | how much of the window has elapsed, and the time until it resets |
+| `7d: 8.0% (95.7%, r:0d7h)` | the same for the 7-day window |
+| `ctx: 5% (50.0K/1.0M)` | context window: percentage, tokens used / window size |
+| `in:53.6K out:3` | total input / output tokens for this session so far |
+| `cost: $0.665` | the session's cost in US dollars |
+| `Opus 5` | model name |
 
-Yüzdeler %70'te sarıya, %90'da kırmızıya döner.
+Percentages turn yellow at 70% and red at 90%.
 
-Parantez içindeki ikinci yüzde işin püf noktası: kota yüzdesi geçen süre
-yüzdesinin belirgin altındaysa yavaş yakıyorsun, üstüne çıkıyorsa pencere
-dolmadan limite çarparsın.
+The second percentage in parentheses is the one to watch. If quota usage stays
+well below the elapsed share of the window, you are using it slowly; if it runs
+ahead, you will hit the limit before the window resets.
 
-`cost` plandan düşen bir tutar değil, "aynı işi API'den yapsaydın ne tutardı"
-demek. Claude Code'un verdiği `total_cost_usd`, her token türünün o modeldeki
-birim fiyatıyla çarpımının toplamı; tek oturum içinde Opus ve Sonnet turlarını
-kendi fiyatlarıyla ayrı ayrı sayıyor ve oturum başına sıfırlanıyor.
+`cost` is not charged against your plan. It shows what the same work would
+have cost through the API. Claude Code reports `total_cost_usd` as the sum of
+each token type multiplied by that model's unit price. Within one session,
+Opus and Sonnet turns are counted separately at their own prices, and the
+figure resets for each session.
 
-`in` / `out` neden ayrıca hesaplanıyor: Claude Code'un verdiği durum JSON'u
-yalnızca o anki isteğin sayılarını taşır — `total_input_tokens` oturum toplamı
-değil, anlık bağlam boyudur. Oturumun toplamı bu yüzden transcript'ten okunur.
+`in` and `out` are computed separately because the status JSON from Claude
+Code only carries figures for the current request: `total_input_tokens` is the
+current context size, not a session total. The session totals are therefore
+read from the transcript.
 
-## Nasıl çalışıyor
+## How it works
 
-Claude Code her çizimde script'e stdin'den bir durum JSON'u verir, script tek
-satır basar. Ağ isteği yok, API çağrısı yok: yerel dosya okuma ve aritmetik.
+On every redraw, Claude Code passes a status JSON to the script on stdin, and
+the script prints one line. There are no network requests or API calls, only
+local file reads and arithmetic.
 
-- **Artımlı transcript okuma.** Her çizimde bütün transcript'i okumak israf
-  olurdu; script bir byte offset'i hatırlar ve yalnızca son okumadan beri eklenen
-  kuyruğu ayrıştırır. Tek bir API çağrısı transcript'e birden çok satır yazar
-  (içerik bloğu başına bir tane) ve hepsi aynı `usage` nesnesini taşır, üstelik
-  hep art arda gelirler; aynı `requestId` tekrarı atlanarak tekilleştirilir.
-  Dosya `FileShare::ReadWrite` ile açılır, yani Claude Code'un yazmasını hiç
-  engellemez. Transcript kısalmışsa (baştan yazılmış demektir) sayım sıfırlanır.
-- **Oturum başına bir sayaç dosyası.** `usage\<session_id>.json`; o dosyaya
-  yalnızca kendi oturumu yazar, dolayısıyla aynı anda açık Claude Code
-  sekmeleri birbirinin yazmasını ezmez. Yazma geçici dosya + atomik taşıma ile
-  yapılır, yarım yazılmış dosya okunmaz.
-- **Devam eden oturum koruması.** Bir oturum `--resume` ile sürdüğünde gelen
-  maliyet sayacı sıfırdan başlayabilir; değer düştüğünde önceki tutar
-  `baseCost`'a yuvarlanır, böylece toplam geri gitmez. Tokenlar transcript'ten
-  yeniden hesaplandığı için onlara böyle bir koruma gerekmez.
-- **Sıkıştırma.** 40'tan fazla oturum dosyası biriktiyse, 7 gündür dokunulmamış
-  olanlar tek bir `archive.json`'a katlanır ve silinir — klasör aylar içinde
-  sınırsız büyümesin diye. Bu iş adlandırılmış bir mutex altında yapılır, iki
-  oturum aynı anda katlamaya kalkışmaz.
-- **Sayı biçimi.** İş parçacığı kültürü `InvariantCulture`'a sabitlenir; yoksa
-  Türkçe yerelde `53.6` yerine `53,6` yazardı.
-- **Durum satırı asla kırılmaz.** Sayaç işinin tamamı `try/catch` içinde; bir
-  şey ters giderse o alan çizilmez, satırın geri kalanı yine basılır.
+- **Incremental transcript reading.** Reading the whole transcript on every
+  redraw would be wasteful, so the script remembers a byte offset and parses
+  only what has been appended since the last read. A single API call writes
+  several lines to the transcript (one per content block), all carrying the
+  same `usage` object and always adjacent, so repeated `requestId` values are
+  skipped. The file is opened with `FileShare::ReadWrite` and never blocks
+  Claude Code from writing to it. If the transcript has become shorter, it has
+  been rewritten, and the count starts over.
+- **One counter file per session.** Each session writes only to its own
+  `usage\<session_id>.json`, so Claude Code tabs open at the same time do not
+  overwrite each other. Writes go to a temporary file that is then moved into
+  place atomically, so a half-written file is never read.
+- **Resumed sessions.** When a session is continued with `--resume`, the cost
+  counter it receives may start from zero again. If the value drops, the
+  previous amount is carried into `baseCost` so the total never goes backwards.
+  Tokens are recomputed from the transcript and need no such handling.
+- **Compaction.** Once more than 40 session files have accumulated, those
+  untouched for 7 days are merged into a single `archive.json` and deleted, so
+  the folder does not grow without limit over the months. This runs under a
+  named mutex, which keeps two sessions from compacting at the same time.
+- **Number format.** The thread culture is pinned to `InvariantCulture`;
+  otherwise a Turkish locale would print `53,6` instead of `53.6`.
+- **Failure handling.** All counter work runs inside `try/catch`. If something
+  fails, only that field is left out and the rest of the line is still printed.
 
-Durum JSON'undan okunan alanlar: `session_id`, `transcript_path`,
-`model.display_name`, `cost.total_cost_usd`, `context_window` ve
-`rate_limits.five_hour` / `.seven_day`. Claude Code bu alanların birini
-göndermezse (örneğin API anahtarıyla kullanımda plan limitleri gelmez) o parça
-sessizce atlanır.
+Fields read from the status JSON: `session_id`, `transcript_path`,
+`model.display_name`, `cost.total_cost_usd`, `context_window` and
+`rate_limits.five_hour` / `.seven_day`. If Claude Code omits one of them (plan
+limits are not sent when using an API key, for example), that part of the line
+is skipped.
 
-## Veriler nerede
+## Data locations
 
 | | |
 |---|---|
-| `%USERPROFILE%\.claude\usage\<session_id>.json` | oturumun sayaç durumu: offset, son `requestId`, model başına token, maliyet |
-| `%USERPROFILE%\.claude\usage\archive.json` | katlanmış eski oturumların toplamı |
+| `%USERPROFILE%\.claude\usage\<session_id>.json` | per-session counter state: offset, last `requestId`, tokens per model, cost |
+| `%USERPROFILE%\.claude\usage\archive.json` | totals of merged older sessions |
 
-Script internete hiç bağlanmaz ve hiçbir şey göndermez. Transcript'ten yalnızca
-`usage` sayıları alınır; konuşmanın içeriği ne okunur ne de bir yere yazılır.
-Sayaçları sıfırlamak için `usage` klasörünü silmen yeterli, Claude Code bundan
-etkilenmez.
+The script never connects to the internet and sends nothing anywhere. It reads
+only the `usage` figures from the transcript; conversation content is neither
+read nor written anywhere. To reset the counters, delete the `usage` folder.
+Claude Code is not affected.
 
-## Lisans
+## License
 
 [MIT](LICENSE).
